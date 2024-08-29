@@ -602,9 +602,217 @@ public class HelloVertx {
 }
 .....................................................................................
 
+Vertx modules:
+...............
+vertx-core
+vertx-web
+vertx-data
+vertx-microservices
+etc...
+
+Verticles
+Threading modles
+callbacks
+Promises
+Futures
 
 
+Verticle:
+  -It is java object
+  -It can be deployed and undeployed on vertx instance.
 
+What is deployment?
+
+The action of bringing "resources" into effective action
+
+In vertx, Brining Resources ready  for computation.
+
+Resources:
+ -Thread creation /allocation
+ -binding an object with that thread
+ -Register all event handlers in case of event driven programming
+ -Allocate memory if required for data/other 
+ -Ensures that other depenendant resources are ready.
+
+-It is based on design pattern called "Actor-like Model"
+-Verticles are bound to "Event loop" , are processed by event loop threads.
+
+
+Verticle is interface which provides life cycle methods 
+  -init   - called when verticle being initalized
+  -start - called when verticle during deployment
+  -stop  - called when verticles during undeployment
+
+
+if you are writing any verticle class, you cant use "Verticle" Interface directly.
+
+Vertx provides an implementation abstract class called "AbstractVerticle" class.
+
+Non Reactive:
+io.vertx.core.AbstractVerticle
+
+Reactive Implementation based:
+io.vertx.rxjava3.core.AbstractVerticle
+io.vertx.rxjava.core.AbstractVerticle
+io.vertx.reactivex.core.AbstractVerticle
+
+
+How to use Verticle?
+
+ AbstractVerticle is base class for creating our own verticles.
+
+
+eg:
+ if you are going to implement servlet , 
+
+public class MyServlet extends HttpServlet{
+
+  init  
+  doGet
+  doPost
+  destroy
+}
+
+package com.mycom;
+
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Context;
+import io.vertx.core.Promise;
+import io.vertx.core.Vertx;
+
+public class HelloWorldVerticle extends AbstractVerticle {
+  //override life cycle method
+  @Override
+  public void init(Vertx vertx, Context context) {
+    super.init(vertx, context);
+    System.out.println("Init is called");
+  }
+
+  //whenever we deploy the verticle on vertx engine these methods are called auotmatically
+  @Override
+  public void start(Promise<Void> startPromise) throws Exception {
+    super.start(startPromise);
+    System.out.println("Start is called");
+  }
+
+  @Override
+  public void stop() throws Exception {
+    super.stop();
+    System.out.println("Stop is called");
+  }
+}
+
+.....................................................................................
+	          How to create multiple verticles and deploy them
+....................................................................................
+
+There are many ways to deploy verticles
+
+1.within main verticle and deploy other verticles
+2.write simple java class and through which you can deployment
+3.Vertx provides a runner class/Lanucher class through which also you can deploymnet
+
+
+1.within main verticle and deploy other verticles
+
+Main verticle has been configured in pom.xml
+
+<main.verticle>com.mycom.MainVerticle</main.verticle>
+<launcher.class>io.vertx.core.Launcher</launcher.class>
+
+1.within main verticle and deploy other verticles
+
+
+package com.amex;
+
+import com.amex.verticles.GreeterVerticle;
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Context;
+import io.vertx.core.Vertx;
+
+public class MainVerticle extends AbstractVerticle {
+  //override verticle life cycle methods
+  @Override
+  public void init(Vertx vertx, Context context) {
+    super.init(vertx, context);
+    System.out.println("Init is called");
+  }
+
+  @Override
+  public void start() throws Exception {
+    super.start();
+    System.out.println("Start method is called");
+    //deploy Greeter Verticle
+    //vertx variable is already available within every verticle we create.
+    // vertx.deployVerticle(new GreeterVerticle());
+    //vertx.deployVerticle(GreeterVerticle.class.getName());
+    vertx.deployVerticle("com.amex.verticles.GreeterVerticle");
+
+  }
+
+  @Override
+  public void stop() throws Exception {
+    super.stop();
+    System.out.println("stop method is called");
+    vertx.undeploy("com.amex.verticles.GreeterVerticle");
+  }
+}
+....................................................................................
+
+....................................................................................
+
+From plain java code how to deploy verticles?
+.............................................
+
+package com.amex;
+
+import com.amex.verticles.GreeterVerticle;
+import io.vertx.core.Vertx;
+
+public class VertlcleDeployer {
+  public static void main(String[] args) {
+    Vertx vertx = Vertx.vertx();
+    vertx.deployVerticle(new GreeterVerticle());
+  }
+}
+
+This code will not call life cycle method like stop.
+This is not recommended way of deploying verticles.
+
+Runner/Lanucher class
+.......................
+Lanuching vertx applications using main method without using "maven/gradle" configuration.
+
+import com.amex.verticles.GreeterVerticle;
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Launcher;
+
+public class LanucherDeployer extends AbstractVerticle {
+  public static void main(String[] args) {
+    Launcher.executeCommand("run", LanucherDeployer.class.getName());
+  }
+
+  @Override
+  public void start() throws Exception {
+    super.start();
+    System.out.println("Deployer starting");
+    vertx.deployVerticle(new GreeterVerticle());
+  }
+
+  @Override
+  public void stop() throws Exception {
+    super.stop();
+    System.out.println("Deployer ending");
+  }
+}
+
+Output:
+Deployer starting
+GreeterVerticle
+Oct 16, 2023 4:37:14 PM io.vertx.core.impl.launcher.commands.VertxIsolatedDeployer
+INFO: Succeeded in deploying verticle
+GreeterVerticle has been stopped
+Deployer ending
 
 
 

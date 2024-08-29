@@ -2,7 +2,7 @@ package com.mycom;
 
 import io.vertx.core.Vertx;
 
-//Write non blocking webserver and return some message
+//Write non-blocking webserver and return some message
 public class WebServer {
   public static void main(String[] args) {
     System.out.println("Thread inside Main Class" + Thread.currentThread().getName());
