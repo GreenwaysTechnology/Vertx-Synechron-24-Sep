@@ -1103,15 +1103,343 @@ public class FutureWithData extends AbstractVerticle {
       .onFailure(System.out::println);
   }
 }
+.....................................................................................
+			Callback Chaining
+.....................................................................................
+
+In sequential programming/sync programming , the flow of the program like below.
+
+//jdbc workflow
+
+Connection con = DriverManger.getConnection();
+Statement st = con.createStatement();
+ResultSet rows =st.executeQuery("select * from orders")
+while(rows.next()){
+  System.out.println(rows.getInt(0)));
+}
+Here flow will go one after another.
+
+What if the same task can be done in functional programming or async way:Vertx.
+
+Functional way of writing sequential work flow.
+   Nested Callbacks/callback chaining/functional Style.
+
+Handler function is called as callback function.
+
+"The output of one callback is input to the another callback , nested callback.
+
+cb1
+   ---cb2
+       |
+        ------
+       cb3
+	|
+	|	
+	---------
+	|
+	|
+	cb4 
+	 |
+	 |
+	 --------
+	  |
+	  cbN
+	    |
+	    process the result.
+
+Use Case:
+   getUser -  if user is available(Success)
+	|
+	 --------call login with output of getUser
+        |
+      if failed
+         |
+        you can throw error.
+
+package com.mycom.futures.callbacks;
+
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Future;
+import io.vertx.core.Launcher;
+
+public class CallbackVerticle extends AbstractVerticle {
+
+  public static void main(String[] args) {
+    Launcher.executeCommand("run", CallbackVerticle.class.getName());
+
+  }
+
+  public Future<User> getUser() {
+    System.out.println("Get User is called");
+    User user = new User("admin", "admin");
+    //
+   // user = null;
+    if (user != null) {
+      return Future.succeededFuture(user);
+    } else {
+      return Future.failedFuture("User not Found");
+    }
+  }
+
+  //login
+  public Future<String> login(String userName, String password) {
+    System.out.println("Login is called");
+    //biz logic
+    if (userName.equals("admin") && password.equals("admin")) {
+      return Future.succeededFuture("Login is success");
+    } else {
+      return Future.failedFuture("Login is failed");
+    }
+  }
+
+  public Future<String> showDashboard(String status) {
+    System.out.println("ShowDashboard is called");
+    if (status.equals("Login is success")) {
+      return Future.succeededFuture("Welcome to admin");
+    } else {
+      return Future.failedFuture("Welcome to Guest");
+    }
+  }
+
+  @Override
+  public void start() throws Exception {
+    super.start();
+    getUser().onComplete(userHandler -> {
+      if (userHandler.failed()) {
+        System.out.println(userHandler.cause().getMessage());
+      } else {
+        User user = userHandler.result();
+        // System.out.println(user.getUserName() + " " + user.getPassword());
+        //call login
+        login(user.getUserName(), user.getPassword()).onComplete(loginHandler -> {
+          if (loginHandler.failed()) {
+            System.out.println(loginHandler.cause().getMessage());
+          } else {
+            //System.out.println(loginHandler.result());
+            showDashboard(loginHandler.result()).onComplete(dashboardHandler -> {
+              if (dashboardHandler.failed()) {
+                System.out.println(dashboardHandler.cause());
+              } else {
+                System.out.println(dashboardHandler.result());
+              }
+            });
+          }
+        });
+      }
+    });
+  }
+}
+....................................................................................
+			 Calback Hell
+............................................................................
+
+    getUser().onComplete(userHandler -> {
+      if (userHandler.failed()) {
+        System.out.println(userHandler.cause().getMessage());
+      } else {
+        User user = userHandler.result();
+        // System.out.println(user.getUserName() + " " + user.getPassword());
+        //call login
+        login(user.getUserName(), user.getPassword()).onComplete(loginHandler -> {
+          if (loginHandler.failed()) {
+            System.out.println(loginHandler.cause().getMessage());
+          } else {
+            //System.out.println(loginHandler.result());
+            showDashboard(loginHandler.result()).onComplete(dashboardHandler -> {
+              if (dashboardHandler.failed()) {
+                System.out.println(dashboardHandler.cause());
+              } else {
+                System.out.println(dashboardHandler.result());
+              }
+            });
+          }
+        });
+      }
+    });
 
 
+Look at the above code, ask your self
+
+1.is it easy to understand
+2.is it easy to scale
+3.is it easy to maintain.
+
+ No.
+
+This is called callback hell, the callback hell is way of writing complex callback based programming.
+
+Can we escape from the callback hell problem, or how to write better callback based programming.
+
+Yes!
+
+Solution 1:
+  private void doSolutionOne() {
+    getUser().onSuccess(user -> {
+      login(user.getUserName(), user.getPassword()).onSuccess(status -> {
+        showDashboard(status).onSuccess(dashboard -> {
+          System.out.println(dashboard);
+        }).onFailure(err -> {
+          System.out.println(err);
+        });
+      }).onFailure(err -> {
+        System.out.println(err);
+      });
+    }).onFailure(err -> {
+      System.out.println(err.getMessage());
+    });
+  }
+
+Solution 2:
+Using Future.compose method
+  private void doSolutionTwo() {
+    getUser().compose(user -> {
+      return login(user.getUserName(), user.getPassword());
+    }).compose(status -> {
+      return showDashboard(status);
+    }).onSuccess(res -> {
+      System.out.println(res);
+    }).onFailure(err -> {
+      System.out.println(err);
+    });
+  }
+
+2.1.Using compose but code refactoring using java functional programming concepts
+
+if function has no any code, only return statement, then we can remove {} and return statement - Lambda refactoring..
 
 
+    //lambda refactoring
+    getUser()
+      .compose(user->login(user.getUserName(), user.getPassword()))
+      .compose(status->showDashboard(status))
+      .onSuccess(res -> {
+      System.out.println(res);
+    }).onFailure(err -> {
+      System.out.println(err);
+    });
+
+2.2.Using Compose,and Using Java 8 method References , instead of lambda syntax , we use method Reference.
+
+Note: method reference works on single variable,so we refeactor our parameter from username,password into object called user.
+
+   getUser()
+      .compose(this::login)
+      .compose(this::showDashboard)
+      .onSuccess(System.out::println)
+      .onFailure(System.out::println);
 
 
+Full Code:
 
+package com.mycom.futures.callbacks;
 
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Future;
+import io.vertx.core.Launcher;
 
+public class CallbackHellSolutionVerticle extends AbstractVerticle {
 
+  public static void main(String[] args) {
+    Launcher.executeCommand("run", CallbackHellSolutionVerticle.class.getName());
 
+  }
+
+  public Future<User> getUser() {
+    System.out.println("Get User is called");
+    User user = new User("admin", "admin");
+    //
+    // user = null;
+    if (user != null) {
+      return Future.succeededFuture(user);
+    } else {
+      return Future.failedFuture("User not Found");
+    }
+  }
+
+  //login
+  public Future<String> login(User user) {
+    System.out.println("Login is called");
+    //biz logic
+    if (user.getUserName().equals("admin") && user.getPassword().equals("admin")) {
+      return Future.succeededFuture("Login is success");
+    } else {
+      return Future.failedFuture("Login is failed");
+    }
+  }
+
+  public Future<String> showDashboard(String status) {
+    System.out.println("ShowDashboard is called");
+    if (status.equals("Login is success")) {
+      return Future.succeededFuture("Welcome to admin");
+    } else {
+      return Future.failedFuture("Welcome to Guest");
+    }
+  }
+
+  //soultion 1:
+  private void doSolutionOne() {
+    getUser().onSuccess(user -> {
+      login(user).onSuccess(status -> {
+        showDashboard(status).onSuccess(dashboard -> {
+          System.out.println(dashboard);
+        }).onFailure(err -> {
+          System.out.println(err);
+        });
+      }).onFailure(err -> {
+        System.out.println(err);
+      });
+    }).onFailure(err -> {
+      System.out.println(err.getMessage());
+    });
+  }
+
+  //Using Future.compose
+  private void doSolutionTwo() {
+    getUser().compose(user -> {
+      return login(user);
+    }).compose(status -> {
+      return showDashboard(status);
+    }).onSuccess(res -> {
+      System.out.println(res);
+    }).onFailure(err -> {
+      System.out.println(err);
+    });
+
+    //lambda refactoring
+    getUser()
+      .compose(user->login(user))
+      .compose(status->showDashboard(status))
+      .onSuccess(res -> {
+        System.out.println(res);
+      }).onFailure(err -> {
+        System.out.println(err);
+      });
+
+    //method Reference
+    getUser()
+      .compose(this::login)
+      .compose(this::showDashboard)
+      .onSuccess(System.out::println)
+      .onFailure(System.out::println);
+  }
+
+  @Override
+  public void start() throws Exception {
+    super.start();
+    //Solution 1:
+    //doSolutionOne();
+    //Solution 2:
+    doSolutionTwo();
+  }
+}
+.......................................
+
+Callback Chaining:
+
+1.using onComplete with handler
+2.using OnSuccess and OnFailure
+3.Using compose method
+   ->using normal compose
+   ->using lambdba 
+   ->using method reference
 
