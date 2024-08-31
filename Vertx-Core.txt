@@ -1623,11 +1623,208 @@ public class PromiseStartVerticle extends AbstractVerticle {
   }
 }
 
+.....................................................................................	
+			 Building Non blocking or Async apps
+.....................................................................................
+
+in order to build non blocking io apps (network,filesystem) and timers, language or framework/lib/toolkit has to provide basic requirment.
+
+1.Runtime should have faciltity to talk to low level operating system non blocking apis such as "select/poll/epoll-linux, iocp-windows,kqueue-mac,unix".
+
+2.For Application developers , the language or framework/lib/toolkit must provide high level apis in order to communicate low level system calls api - vertx provides high level apis.
+
+3.At runtime level, Runtime must provide threading features to listen for os kernal events. Event loop threads.
+
+4.Program level, we must bind function to handle such events(callbacks)
+
+Vertx non blocking apis:
+.......................
+
+1.Timer 
+2.File System
+3.Http Api
+4.Socket api
+5.Udp and DataGram 
+etc....
 
 
+Timer:
+......
+
+It is common in vertx to want to perform some action after a certain delay or perdically.
+
+Timer is special non blocking api which schdules any task in delayed manner which does not block the current thread.
+
+Task is executed by "CPU" level.
+
+Timer is not part of FileDecriptor table because it is not an IO operation.
 
 
+Types of timers:
+1.one-shot timers
+2.Periodic timers.
 
+one-shot Timers:
+
+
+package com.mycom.nonblocking.timers;
+
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Launcher;
+import io.vertx.core.Promise;
+
+public class OneShortTimerVerticle extends AbstractVerticle {
+  public static void main(String[] args) {
+    Launcher.executeCommand("run", OneShortTimerVerticle.class.getName());
+  }
+
+  private void blockMe(String message) {
+    System.out.println(message);
+  }
+
+  @Override
+  public void start(Promise<Void> startPromise) throws Exception {
+    super.start(startPromise);
+    //timer
+    blockMe("start");
+    vertx.setTimer(1000, handler -> {
+      System.out.println("I am delayed task");
+    });
+    blockMe("end");
+  }
+}
+..................................................................................
+
+
+How to transfer data with timer?
+package com.mycom.nonblocking.timers;
+
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Future;
+import io.vertx.core.Launcher;
+import io.vertx.core.Promise;
+
+public class TimerWithDataVerticle extends AbstractVerticle {
+  public static void main(String[] args) {
+    Launcher.executeCommand("run", TimerWithDataVerticle.class.getName());
+  }
+
+  private void blockMe(String message) {
+    System.out.println(message);
+  }
+
+  public Future<String> getMessage() {
+    return Future.future(ar -> {
+      String response = "Hello Timer!";
+      vertx.setTimer(1000, handler -> {
+        ar.complete(response);
+      });
+    });
+  }
+
+  @Override
+  public void start(Promise<Void> startPromise) throws Exception {
+    super.start(startPromise);
+    //timer
+    blockMe("start");
+    getMessage().onSuccess(System.out::println);
+    blockMe("end");
+  }
+}
+...................................................................................
+   	Passing data using callback pattern-Higher order function
+
+
+package com.mycom.nonblocking.timers;
+
+import io.vertx.core.*;
+
+
+public class TimerWIthHigherOrderVerticle extends AbstractVerticle {
+  public static void main(String[] args) {
+    Launcher.executeCommand("run", TimerWIthHigherOrderVerticle.class.getName());
+  }
+
+  private void blockMe(String message) {
+    System.out.println(message);
+  }
+
+  public void getMessage(Handler<AsyncResult<String>> aHandler) {
+    vertx.setTimer(1000, timerHandler -> {
+      String res = "Hello How are you";
+      aHandler.handle(Future.succeededFuture(res));
+    });
+  }
+
+  @Override
+  public void start(Promise<Void> startPromise) throws Exception {
+    super.start(startPromise);
+    //timer
+    blockMe("start");
+    getMessage(aRes -> {
+      System.out.println(aRes.result());
+    });
+    blockMe("end");
+  }
+}
+....................................................................................
+			Periodic Timers
+...................................................................................
+
+Periodic timers are used to send data infinitely.
+
+
+package com.mycom.nonblocking.timers;
+
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Launcher;
+import io.vertx.core.Promise;
+
+public class PeriodicTimerVerticle extends AbstractVerticle {
+  public static void main(String[] args) {
+    Launcher.executeCommand("run", PeriodicTimerVerticle.class.getName());
+  }
+
+  public void tick() {
+    vertx.setPeriodic(1000, handler -> {
+      System.out.println(Math.random());
+    });
+  }
+
+  @Override
+  public void start(Promise<Void> startPromise) throws Exception {
+    super.start(startPromise);
+    tick();
+  }
+}
+..................................................................................
+			How to return data From Periodic timer
+..................................................................................
+
+package com.mycom.nonblocking.timers;
+
+import io.vertx.core.*;
+
+public class PeriodicTimerVerticle extends AbstractVerticle {
+  public static void main(String[] args) {
+    Launcher.executeCommand("run", PeriodicTimerVerticle.class.getName());
+  }
+
+  public void poll(Handler<AsyncResult<Double>> aHandler) {
+    vertx.setPeriodic(1000, handler -> {
+      //Future.succeededFuture(Math.random());
+      aHandler.handle(Future.succeededFuture(Math.random()));
+    });
+  }
+
+  @Override
+  public void start(Promise<Void> startPromise) throws Exception {
+    super.start(startPromise);
+    poll(res -> {
+      System.out.println(res.result());
+    });
+  }
+}
 
 
 
