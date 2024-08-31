@@ -1442,4 +1442,201 @@ Callback Chaining:
    ->using normal compose
    ->using lambdba 
    ->using method reference
+.....................................................................................
+			Advanced Composition: CompsiteFuture
+.....................................................................................
+
+Lets i have i have three methods
+
+1.startDbServer
+2.startHttpServer
+3.startConfigServer
+
+I need to ensure that my app must initalized only, all servers are up, if any one server is failed, stop all servers , dont initalize my app.
+
+
+Future Coordintation:
+
+   Coordination of multiple futures can be achived with Vertx Futures
+
+Vertx supports cocurrent compostion(runnin serveral async operations in parall) and code looks sequentail - chaining async operations.
+
+Methods:
+ CompositeFuture.all() or Future.all() - all should succeed , then only you have to  start app
+ CompsiteFuture.any() or Future.any()-any one succeed you can run app
+
+package com.mycom.futures.callbacks;
+
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.CompositeFuture;
+import io.vertx.core.Future;
+import io.vertx.core.Launcher;
+
+public class CompositeFutureVerticle extends AbstractVerticle {
+
+  public static void main(String[] args) {
+    Launcher.executeCommand("run", CompositeFutureVerticle.class.getName());
+
+  }
+
+  public Future<String> startDbServer() {
+    System.out.println("DB server started");
+    return Future.succeededFuture("DB server is up");
+  }
+
+  public Future<String> startHttpServer() {
+    System.out.println("HTTP server started");
+    return Future.succeededFuture("HttpServer  is up");
+  }
+
+  public Future<String> startConfigServer() {
+    System.out.println("Config server started");
+    return Future.succeededFuture("ConfigServer  is up");
+  }
+
+  @Override
+  public void start() throws Exception {
+    super.start();
+    Future<String> dbServer = startDbServer();
+    Future<String> webServer = startHttpServer();
+    Future<String> configServer = startConfigServer();
+    //
+    CompositeFuture.all(dbServer, webServer, configServer).onComplete(ar -> {
+      if (ar.succeeded()) {
+        System.out.println("All servers are up");
+        //do something else
+      } else {
+        System.out.println(ar.cause().getMessage());
+      }
+    });
+    //Using Future:
+    Future.all(dbServer, webServer, configServer).onComplete(ar -> {
+      if (ar.succeeded()) {
+        System.out.println("All servers are up");
+        //do something else
+      } else {
+        System.out.println(ar.cause().getMessage());
+      }
+    });
+
+    Future.all(dbServer, webServer, configServer)
+      .onSuccess(System.out::println)
+      .onFailure(System.out::println);
+  }
+}
+....................................................................................
+			 Promises
+.....................................................................................
+
+If Futures are read side of async result where as Promises are "write side" of async results.
+
+Promises are insired from java script language.
+
+Promises are semantically meaningfull abstrcation for handling async result.
+
+Most of the developers confuse the Java Future and Vert.x Future, in order to avoid confusion, Promises were introduced.
+
+Promises cant be processed directly with "OnComplete/OnSuccess" api 
+
+Promises need to converted into Future before Processing.
+
+
+How to create Promise and process promises?
+package com.mycom.promises;
+
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Future;
+import io.vertx.core.Launcher;
+import io.vertx.core.Promise;
+
+public class PromiseVerticle extends AbstractVerticle {
+  public static void main(String[] args) {
+    Launcher.executeCommand("run", PromiseVerticle.class.getName());
+  }
+
+  //create Promise and encaspulate Data
+  public Promise<String> getHelloPromise() {
+    Promise promise = Promise.promise();
+    promise.complete("Hello");
+    return promise;
+  }
+
+  public Future<String> getHaiPromise() {
+    Promise promise = Promise.promise();
+    promise.complete("Hai");
+    return promise.future();
+  }
+
+  @Override
+  public void start() throws Exception {
+    super.start();
+    getHelloPromise().future().onSuccess(System.out::println);
+    getHaiPromise().onSuccess(System.out::println);
+  }
+}
+.....................................................................................			 Verticle start and stop method with Promises
+.....................................................................................
+
+Async Verticle start and stop methods:
+
+ Sometimes you want to do something in your verticle startup which may takes some time and you dont want  the verticle to be considered deployed untile that happens.
+
+for eg, you might want to start an http server start method and propagate the async result of server listen method.
+
+The way to do is to implement the async start method(Start with method with promise as arg)
+ This version of start method takes promise as a parameter, when the method returns verticle will not be considered deployed.
+
+Every Verticle will have unique deploymentId, which can be to undeploy verticles
+
+
+
+package com.mycom.promises;
+
+import com.mycom.HelloWorldVerticle;
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Launcher;
+import io.vertx.core.Promise;
+
+public class PromiseStartVerticle extends AbstractVerticle {
+  public static void main(String[] args) {
+    Launcher.executeCommand("run", PromiseStartVerticle.class.getName());
+  }
+  //start
+
+  @Override
+  public void start(Promise<Void> startPromise) throws Exception {
+    super.start(startPromise);
+    vertx.deployVerticle(new HelloWorldVerticle(), ar -> {
+      if (ar.succeeded()) {
+        System.out.println(HelloWorldVerticle.class.getName() + " " + "Deployment Id is " + ar.result());
+        //startPromise.complete();
+        startPromise.future().onSuccess(event -> {
+          System.out.println("App is ready");
+        });
+      } else {
+        startPromise.future().onFailure(event -> {
+          System.out.println("App is failed");
+        });
+      }
+
+    });
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
